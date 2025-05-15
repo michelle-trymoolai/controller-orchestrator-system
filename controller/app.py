@@ -12,7 +12,19 @@ app.secret_key = 'supersecret'
 DUMMY_USERNAME = "admin"
 DUMMY_PASSWORD = "password123"
 
-orchestrators = {}  # {ip: (orch_id, name, last_seen)}
+
+orchestrators = {}  
+
+
+from cache_manager import get_cache_manager
+shared_cache_path = "../cache"
+cache_manager = get_cache_manager(cache_dir=shared_cache_path)
+
+
+from cache_routes import cache_bp
+app.register_blueprint(cache_bp)
+
+# ---------------------- ROUTES ---------------------- #
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -31,6 +43,12 @@ def home():
     if 'user' not in session:
         return redirect(url_for('login'))
     return render_template('home.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    return render_template('dashboard.html')
 
 @app.route('/generate', methods=['POST'])
 def generate():
@@ -57,12 +75,6 @@ def heartbeat():
     print(f"[Heartbeat] {orch_id} ({orch_name}) @ {ip} @ {now}")
     return {"status": "received"}
 
-@app.route('/dashboard')
-def dashboard():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-    return render_template('dashboard.html')
-
 @app.route('/api/heartbeat_status')
 def heartbeat_status():
     if 'user' not in session:
@@ -80,6 +92,15 @@ def heartbeat_status():
         })
     return jsonify(data)
 
+@app.route("/cache/<orchestrator_id>")
+def cache_dashboard(orchestrator_id):
+    return render_template("cache_dashboard.html",
+                           orchestrator_id=orchestrator_id,
+                           orchestrator_name="Orch_" + orchestrator_id,
+                           cache_enabled=True)
+
+# ---------------------- UTILS ---------------------- #
+
 def monitor_heartbeats():
     while True:
         now = datetime.datetime.utcnow()
@@ -89,7 +110,7 @@ def monitor_heartbeats():
         threading.Event().wait(15)
 
 def create_orchestrator_executable(name):
-    base_path = './orchestrator-template'  # Remove /controller prefix
+    base_path = './orchestrator-template'
     build_path = './orchestrator_dist'
     os.makedirs(build_path, exist_ok=True)
 
@@ -128,4 +149,4 @@ def create_orchestrator_executable(name):
 
 if __name__ == '__main__':
     threading.Thread(target=monitor_heartbeats, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5050)
